@@ -8,6 +8,16 @@ PyMongo.
 Setting up a virtual environment (ideally), installing dependencies, and gaining
 credentials.
 
+You'll need the MongoDB service running so the application can find the database.
+
+Head to MongoDB's installation page make sure you get it right:
+
+https://docs.mongodb.org/manual/installation/
+
+Finally, run the mongod service with:
+
+`mongod`
+
 ### Virtual Environment
 
 I would recommend running this in a virtual environment to keep your
