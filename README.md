@@ -10,7 +10,7 @@ credentials.
 
 You'll need the MongoDB service running so the application can find the database.
 
-Head to MongoDB's installation page make sure you get it right:
+Head to MongoDB's installation page to make sure you get it right:
 
 https://docs.mongodb.org/manual/installation/
 
