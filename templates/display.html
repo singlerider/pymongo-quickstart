@@ -1,6 +1,6 @@
 {% extends "bootstrap/base.html" %} {% block title %}Form Data{% endblock %} {% import "bootstrap/wtf.html" as wtf %} {% block content %}
 <h3>POST using the form below:</h3>
-<form class="form" method="post" role="form"> {{ wtf.form_field(form.me) }} {{ wtf.form_field(form.nearby) }}
+<form class="form input-form" method="post" role="form" action="{{ url_for('input_form') }}"> {{ wtf.form_field(form.me) }} {{ wtf.form_field(form.nearby) }}
   <input type="submit" value="Submit"> </form>
 <br>
 <br>
@@ -17,7 +17,7 @@
     <td> {{ entry.nearby }} </td>
     <td> {{ entry.proximity_date }} </td>
     <td> {{ entry._id }} </td>
-    <td> <form class="form" method="post" role="delete">
+    <td> <form class="form delete-form" method="post" role="delete" action="{{ url_for('delete_form') }}">
       <input type="hidden" name="_id" value="{{ entry._id }}">
       <input type="submit" value="DELETE"> </form> </td>
   </tr> {% endfor %} </table> {% endblock %}
