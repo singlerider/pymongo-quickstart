@@ -7,8 +7,11 @@ from flask import Flask, json, request, render_template, redirect
 from flask_bootstrap import Bootstrap
 from pymongo import MongoClient
 from wtforms import Form, TextField, SubmitField, validators
+import requests
+from flask.ext.cors import CORS
 
 app = Flask(__name__)
+cors = CORS(app)
 Bootstrap(app)
 
 
@@ -68,6 +71,7 @@ def device():
             "me") is not None and x.get("nearby") is not None]
         alt_results = [x for x in alt_result if x.get(
             "me") is not None and x.get("nearby") is not None]
+        print results, alt_results
         if len(results) > 0 and len(alt_results) > 0:
             return JSONEncoder().encode(results)
         else:
@@ -118,7 +122,7 @@ def delete_form():
 @app.route("/display", methods=["GET", "POST"])
 def display():
     form = DisplayForm(request.form)
-    data = collection1.find()
+    data = list(collection1.find())
     if request.method == 'POST' and form.validate():
         me = request.form.get('me')
         nearby = request.form.get('nearby')
@@ -130,8 +134,15 @@ def display():
             collection1.remove({"_id": ObjectId(_id.strip("\""))})
             return JSONEncoder().encode(result)
         return render_template('404.html'), 404
-    return render_template('display.html', data=data, form=form)
+    for entry in data:
+        inverse_match = collection1.find_one(
+            {"me": entry.get("nearby"), "nearby": entry.get("me")})
+        if inverse_match is not None:
+            entry["color"] = "green"
+        else:
+            entry["color"] = "red"
+    return render_template('display.html', form=form, data=data)
 
 
 if __name__ == "__main__":
-    app.run("0.0.0.0")
+    app.run("0.0.0.0", threaded=True, debug=True)
