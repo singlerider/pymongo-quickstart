@@ -7,7 +7,6 @@ from flask import Flask, json, request, render_template, redirect
 from flask_bootstrap import Bootstrap
 from pymongo import MongoClient
 from wtforms import Form, TextField, SubmitField, validators
-import urllib
 
 app = Flask(__name__)
 Bootstrap(app)
@@ -36,12 +35,19 @@ class DataForm(Form):
     submit = SubmitField("submit")
 
 
+class DisplayForm(Form):
+    me = TextField('Me')
+    nearby = TextField('Nearby')
+    submit = SubmitField("submit")
+
+
 @app.route("/", methods=["GET", "POST", "DELETE"])
 def device():
+    me = request.args.get("me")
+    nearby = request.args.get("nearby")
     proximity_date = datetime.now()
     if request.method == "GET":
-        me = request.args.get("me")
-        nearby = request.args.get("nearby")
+
         result = collection1.find(
             {
                 "$query": {"me": me}, "$orderby": {"proximity_date": 1}
@@ -63,8 +69,6 @@ def device():
         else:
             return render_template('404.html'), 404
     if request.method == "POST":
-        me = request.args.get("me")
-        nearby = request.args.get("nearby")
         result = collection1.find_one({"me": me, "nearby": nearby})
         if not result:
             document = collection1.insert(
@@ -79,8 +83,6 @@ def device():
                 }
             )
     if request.method == "DELETE":
-        me = request.args.get("me")
-        nearby = request.args.get("nearby")
         result = collection1.find_one({"me": me, "nearby": nearby})
         if result:
             collection1.remove({"me": me, "nearby": nearby})
@@ -98,5 +100,39 @@ def form_data():
         return redirect("/?me={0}&nearby={1}".format(me, nearby), code=307)
     return render_template('form.html', form=form)
 
+
+@app.route("/display", methods=["GET", "POST"])
+def display():
+    form = DisplayForm(request.form)
+    data = collection1.find()
+    if request.method == 'POST' and form.validate():
+        me = request.form.get('me')
+        nearby = request.form.get('nearby')
+        _id = request.form.get('_id')
+        return redirect(
+            "/redirect?me={0}&nearby={1}&_id={2}".format(
+                me, nearby, _id
+            ), code=307)
+    return render_template('display.html', data=data, form=form)
+
+
+@app.route("/redirect", methods=["POST"])
+def alternative_action():
+    if request.method == "POST":
+        me = request.args.get("me")
+        nearby = request.args.get("nearby")
+        if me != "None" and nearby != "None":
+            return redirect("/?me={0}&nearby={1}".format(me, nearby), code=307)
+        result = collection1.find_one({"me": me, "nearby": nearby})
+        _id = request.args.get('_id')
+        print request.args
+        if not result and _id != "None":
+            result = collection1.find_one({"_id": ObjectId(_id)})
+            if result:
+                collection1.remove({"_id": ObjectId(_id)})
+                return JSONEncoder().encode(result)
+    return render_template('404.html'), 404
+
+
 if __name__ == "__main__":
-    app.run("0.0.0.0")
+    app.run("0.0.0.0", debug=True)
