@@ -7,11 +7,10 @@ from flask import Flask, json, request, render_template, redirect
 from flask_bootstrap import Bootstrap
 from pymongo import MongoClient
 from wtforms import Form, TextField, SubmitField, validators
+import urllib
 
 app = Flask(__name__)
 Bootstrap(app)
-
-# Custom BSON (MongoDB JSON) to JSON encoder
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -21,7 +20,6 @@ class JSONEncoder(json.JSONEncoder):
             return str(o)
         return json.JSONEncoder.default(self, o)
 
-# Database declarations - will instantiate automatically on first POST
 client = MongoClient()
 db = client.questiontwo
 collection1 = db.proximity
@@ -56,14 +54,16 @@ def device():
             }
         )
         # iteration required to separate entries as usable data
-        results = [x for x in result if x.get("me") is not None and x.get("nearby") is not None]
-        alt_results = [x for x in alt_result if x.get("me") is not None and x.get("nearby") is not None]
+        results = [x for x in result if x.get(
+            "me") is not None and x.get("nearby") is not None]
+        alt_results = [x for x in alt_result if x.get(
+            "me") is not None and x.get("nearby") is not None]
         if len(results) > 0 and len(alt_results) > 0:
             return JSONEncoder().encode(results)
         else:
             return render_template('404.html'), 404
     if request.method == "POST":
-        me = request.args.get("me")  # result1
+        me = request.args.get("me")
         nearby = request.args.get("nearby")
         result = collection1.find_one({"me": me, "nearby": nearby})
         if not result:
