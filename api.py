@@ -1,13 +1,19 @@
 #! /usr/bin/env python
 
-from flask import Flask, request, jsonify, json
-from pymongo import MongoClient
+from datetime import datetime
+
 from bson import ObjectId
-import requests
+from flask import Flask, json, request, render_template, flash, redirect, url_for
+from flask_bootstrap import Bootstrap
+from pymongo import MongoClient
+from wtforms import Form, TextField, SubmitField, validators
 
 app = Flask(__name__)
+Bootstrap(app)
 
 # Custom BSON (MongoDB JSON) to JSON encoder
+
+
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, ObjectId):
@@ -16,50 +22,68 @@ class JSONEncoder(json.JSONEncoder):
 
 # Database declarations - will instantiate automatically on first POST
 client = MongoClient()
-db = client.DATABASENAME
-collection1 = db.COLLECTION1NAME
-collection2 = db.COLLECTION2NAME
+db = client.questiontwo
+collection1 = db.proximity
 
 # Handle error404 however you want
+
+
 @app.errorhandler(404)
 def page_not_found(e):
     return "CUSTOM ERROR"
 
 # Home page of our app, with GET, POST, PUT, DELETE methods allowed
-@app.route("/", methods=["GET", "POST", "PUT", "DELETE"])
+
+
+class DataForm(Form):
+    me = TextField('Me', [validators.Required()])
+    nearby = TextField('Nearby', [validators.Required()])
+    submit = SubmitField("submit")
+
+
+@app.route("/", methods=["GET", "POST", "DELETE"])
 def device():
-    if request.method == "POST":
-        # /?param1=result1&param2=result2
-        # Method will create an {_id: ObjectId(HASH)} field in the document
-        param1 = request.args.get("param1") # result1
-        param2 = request.args.get("param2") # result2
-        document = collection1.insert({"param1": param1, "param2": param2})
-        return JSONEncoder().encode(document)
+    proximity_date = datetime.now()
     if request.method == "GET":
-        _id = request.args.get("_id") # Searches for {"_id": ObjectId(HASH)}
-        result = collection1.find_one({"_id": ObjectId(_id)})
-        return JSONEncoder().encode(result)
-    if request.method == "PUT":
-        _id = request.args.get("_id")
-        param1 = request.args.get("param1")
-        param2 = request.args.get("param2")
-        # modifies an existing document with new paarameters
-        result = collection1.update({
-                "_id": ObjectId(_id)
-            },
-            {
-                "$set": {
-                    "param1": param1,
-                    "param2": param2
-                },
-            })
-        if len(result) > 0:
-            return JSONEncoder().encode(result)
-        else:
-            return {}
+        me = request.args.get("me")
+        nearby = request.args.get("nearby")
+        result = collection1.find(
+            {"$query": {"me": me}, "$orderby": {"proximity_date": 1}}
+        )
+        alt_result = collection1.find(
+            {"$query": {"me": nearby, "nearby": me}, "$orderby": {"proximity_date": 1}}
+        )
+        results = JSONEncoder().encode([x for x in result])
+        alt_results = JSONEncoder().encode([x for x in alt_result])
+        print results, alt_results
+        # if type(result) == dict and type(alt_result) == dict:
+        #     return JSONEncoder().encode(result)
+        # elif type(result) == dict:
+        return results
+        # else:
+        #     return render_template('404.html'), 404
+    if request.method == "POST":
+        me = request.args.get("me")  # result1
+        nearby = request.args.get("nearby")
+        document = collection1.insert(
+            {"me": me, "nearby": nearby, "proximity_date": proximity_date}
+        )
+        return JSONEncoder().encode(document)
     if request.method == "DELETE":
-        _id = request.args.get("_id")
-        result = collection1.remove({"_id": ObjectId(_id)})
+        me = request.args.get("me")
+        nearby = request.args.get("nearby")
+        result = collection1.remove({"me": me, "nearby": nearby})
+        return JSONEncoder().encode(result)
+
+
+@app.route("/form", methods=["GET", "POST", "DELETE"])
+def form_data():
+    form = DataForm(request.form)
+    if request.method == 'POST' and form.validate():
+        me = request.form['me']
+        nearby = request.form['nearby']
+        return redirect("/?me={0}&nearby={1}".format(me, nearby), code=307)
+    return render_template('form.html', form=form)
 
 if __name__ == "__main__":
-    app.run("0.0.0.0")
+    app.run("0.0.0.0", debug=True)

@@ -1,0 +1,16 @@
+{% extends "bootstrap/base.html" %}
+{% block title %}Form Data{% endblock %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block content %}
+<h3>POST using the form below:</h3>
+
+<form class="form" method="post" role="form">
+
+  {{ wtf.form_field(form.me) }}
+  {{ wtf.form_field(form.nearby) }}
+
+<input type="submit" value="Submit">
+</form>
+
+{% endblock %}
