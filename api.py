@@ -2,13 +2,13 @@
 
 from datetime import datetime
 
+import requests
 from bson import ObjectId
-from flask import Flask, json, request, render_template, redirect
+from flask import Flask, json, redirect, render_template, request
+from flask.ext.cors import CORS
 from flask_bootstrap import Bootstrap
 from pymongo import MongoClient
-from wtforms import Form, TextField, SubmitField, validators
-import requests
-from flask.ext.cors import CORS
+from wtforms import Form, SubmitField, TextField, validators
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -53,45 +53,43 @@ class DeleteForm(Form):
 def device():
     me = request.args.get("me")
     nearby = request.args.get("nearby")
+    _id = request.args.get("_id")
     proximity_date = datetime.now()
     if request.method == "GET":
-        result = collection1.find(
-            {
+        if me is None and nearby is None and _id is None:
+            result = list(collection1.find())
+            return JSONEncoder().encode(result)
+        else:
+            result = list(collection1.find({
                 "$query": {"me": me}, "$orderby": {"proximity_date": 1}
-            }
-        )
-        alt_result = collection1.find(
-            {
+            }))
+            alt_result = list(collection1.find({
                 "$query": {"me": nearby, "nearby": me},
                 "$orderby": {"proximity_date": 1}
-            }
-        )
-        # iteration required to separate entries as usable data
-        results = [x for x in result if x.get(
-            "me") is not None and x.get("nearby") is not None]
-        alt_results = [x for x in alt_result if x.get(
-            "me") is not None and x.get("nearby") is not None]
-        print results, alt_results
-        if len(results) > 0 and len(alt_results) > 0:
-            return JSONEncoder().encode(results)
-        else:
-            return render_template('404.html'), 404
+            }))
+            if len(result) > 0 and len(alt_result) > 0:
+                return JSONEncoder().encode(result)
+            else:
+                return render_template('404.html'), 404
     if request.method == "POST":
         result = collection1.find_one({"me": me, "nearby": nearby})
         if not result:
-            document = collection1.insert(
-                {"me": me, "nearby": nearby, "proximity_date": proximity_date}
-            )
+            document = collection1.insert({
+                "me": me, "nearby": nearby, "proximity_date": proximity_date
+            })
             return JSONEncoder().encode(document)
         else:
             _id = JSONEncoder().encode(result.get("_id"))
-            updated = collection1.update(
-                {"_id": ObjectId(_id.strip("\""))}, {
+            updated = collection1.update({
+                "_id": ObjectId(_id.strip("\""))}, {
                     "$set": {"proximity_date": proximity_date}
-                }
-            )
+            })
             return JSONEncoder().encode(updated)
     if request.method == "DELETE":
+        if _id is not None:
+            result = collection1.find_one({"_id": ObjectId(_id)})
+            collection1.remove({"_id": ObjectId(_id)})
+            return JSONEncoder().encode(result)
         result = collection1.find_one({"me": me, "nearby": nearby})
         if result:
             collection1.remove({"me": me, "nearby": nearby})
@@ -122,7 +120,7 @@ def delete_form():
 @app.route("/display", methods=["GET", "POST"])
 def display():
     form = DisplayForm(request.form)
-    data = list(collection1.find())
+    data = json.loads(requests.get("http://0.0.0.0:5000/").content)
     if request.method == 'POST' and form.validate():
         me = request.form.get('me')
         nearby = request.form.get('nearby')
@@ -130,14 +128,15 @@ def display():
         if me is not None and nearby is not None:
             return redirect("/?me={0}&nearby={1}".format(me, nearby), code=307)
         if _id is not None:
-            result = collection1.find_one({"_id": ObjectId(_id.strip("\""))})
-            collection1.remove({"_id": ObjectId(_id.strip("\""))})
-            return JSONEncoder().encode(result)
+            result = requests.delete(
+                "http://0.0.0.0:5000?_id={0}".format(_id))
+            return result.content
         return render_template('404.html'), 404
     for entry in data:
-        inverse_match = collection1.find_one(
-            {"me": entry.get("nearby"), "nearby": entry.get("me")})
-        if inverse_match is not None:
+        inverse_match = requests.get(
+            "http://0.0.0.0:5000/?me={0}&nearby={1}".format(
+                entry["nearby"], entry["me"]))
+        if inverse_match.status_code == 200:
             entry["color"] = "green"
         else:
             entry["color"] = "red"
