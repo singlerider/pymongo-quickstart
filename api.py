@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from bson import ObjectId
-from flask import Flask, json, request, render_template, flash, redirect, url_for
+from flask import Flask, json, request, render_template, redirect
 from flask_bootstrap import Bootstrap
 from pymongo import MongoClient
 from wtforms import Form, TextField, SubmitField, validators
@@ -15,6 +15,7 @@ Bootstrap(app)
 
 
 class JSONEncoder(json.JSONEncoder):
+
     def default(self, o):
         if isinstance(o, ObjectId):
             return str(o)
@@ -25,14 +26,10 @@ client = MongoClient()
 db = client.questiontwo
 collection1 = db.proximity
 
-# Handle error404 however you want
-
 
 @app.errorhandler(404)
 def page_not_found(e):
     return "CUSTOM ERROR"
-
-# Home page of our app, with GET, POST, PUT, DELETE methods allowed
 
 
 class DataForm(Form):
@@ -48,32 +45,48 @@ def device():
         me = request.args.get("me")
         nearby = request.args.get("nearby")
         result = collection1.find(
-            {"$query": {"me": me}, "$orderby": {"proximity_date": 1}}
+            {
+                "$query": {"me": me}, "$orderby": {"proximity_date": 1}
+            }
         )
         alt_result = collection1.find(
-            {"$query": {"me": nearby, "nearby": me}, "$orderby": {"proximity_date": 1}}
+            {
+                "$query": {"me": nearby, "nearby": me},
+                "$orderby": {"proximity_date": 1}
+            }
         )
-        results = JSONEncoder().encode([x for x in result])
-        alt_results = JSONEncoder().encode([x for x in alt_result])
-        print results, alt_results
-        # if type(result) == dict and type(alt_result) == dict:
-        #     return JSONEncoder().encode(result)
-        # elif type(result) == dict:
-        return results
-        # else:
-        #     return render_template('404.html'), 404
+        # iteration required to separate entries as usable data
+        results = [x for x in result if x.get("me") is not None and x.get("nearby") is not None]
+        alt_results = [x for x in alt_result if x.get("me") is not None and x.get("nearby") is not None]
+        if len(results) > 0 and len(alt_results) > 0:
+            return JSONEncoder().encode(results)
+        else:
+            return render_template('404.html'), 404
     if request.method == "POST":
         me = request.args.get("me")  # result1
         nearby = request.args.get("nearby")
-        document = collection1.insert(
-            {"me": me, "nearby": nearby, "proximity_date": proximity_date}
-        )
-        return JSONEncoder().encode(document)
+        result = collection1.find_one({"me": me, "nearby": nearby})
+        if not result:
+            document = collection1.insert(
+                {"me": me, "nearby": nearby, "proximity_date": proximity_date}
+            )
+            return JSONEncoder().encode(document)
+        else:
+            _id = JSONEncoder().encode(result.get("_id"))
+            collection1.update(
+                {"_id": ObjectId(_id)}, {
+                    "$set": {"proximity_date": proximity_date}
+                }
+            )
     if request.method == "DELETE":
         me = request.args.get("me")
         nearby = request.args.get("nearby")
-        result = collection1.remove({"me": me, "nearby": nearby})
-        return JSONEncoder().encode(result)
+        result = collection1.find_one({"me": me, "nearby": nearby})
+        if result:
+            collection1.remove({"me": me, "nearby": nearby})
+            return JSONEncoder().encode(result)
+        else:
+            return render_template('404.html'), 404
 
 
 @app.route("/form", methods=["GET", "POST", "DELETE"])
@@ -86,4 +99,4 @@ def form_data():
     return render_template('form.html', form=form)
 
 if __name__ == "__main__":
-    app.run("0.0.0.0", debug=True)
+    app.run("0.0.0.0")
